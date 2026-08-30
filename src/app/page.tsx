@@ -1,70 +1,116 @@
-const SAMPLE = [
-  {
-    score: 78,
-    title: 'Fullstack JavaScript Developer',
-    company: 'Opus Recruitment Solutions',
-    platform: 'Adzuna',
-    location: 'London, UK',
-    pay: '£65,000–£80,000',
-    estimated: false,
-    assessment:
-      'Strong alignment across the stack — React and TypeScript are central to the role, and the backend work maps onto your NestJS experience. The remote arrangement is stated explicitly, which is unusual for this listing type.',
-    matched: ['React', 'TypeScript', 'Node.js'],
-    concerns: ['Permanent role rather than contract'],
-  },
-  {
-    score: 72,
-    title: 'Frontend Developer — React / Next.js',
-    company: 'Standard 8',
-    platform: 'Adzuna',
-    location: 'Manchester, UK',
-    pay: '£55,000',
-    estimated: true,
-    assessment:
-      'Next.js is named directly in the requirements, which is rare. The salary figure comes from the aggregator rather than the employer, so treat it as indicative until confirmed.',
-    matched: ['Next.js', 'React', 'Tailwind CSS'],
-    concerns: ['Salary not employer-stated', 'On-site two days a week'],
-  },
-  {
-    score: 42,
-    title: 'Junior AI Software Engineer',
-    company: 'Accenture',
-    platform: 'Adzuna',
-    location: 'UK',
-    pay: '£60,668',
-    estimated: true,
-    assessment:
-      'Full-stack skills are relevant, but the role is pitched at junior level and centres on agentic AI tooling rather than your core stack. No mention of NestJS or Supabase.',
-    matched: ['TypeScript', 'React'],
-    concerns: ['Junior level', 'Not explicitly remote'],
-  },
-];
+'use client';
+
+import { useEffect, useState } from 'react';
+import { apiGet, apiPost, type Assessment } from '@/lib/api';
+
+function money(n: number | null, currency: string): string | null {
+  if (n === null) return null;
+  const symbols: Record<string, string> = {
+    GBP: '£',
+    USD: '$',
+    EUR: '€',
+    TRY: '₺',
+  };
+  const symbol = symbols[currency] ?? currency + ' ';
+  return symbol + Math.round(n).toLocaleString();
+}
 
 export default function Home() {
+  const [items, setItems] = useState<Assessment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiGet<Assessment[]>('/me/assessments')
+      .then(setItems)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  async function decide(jobId: string, decision: 'approved' | 'rejected') {
+    setBusy(jobId);
+    try {
+      await apiPost('/me/assessments/' + jobId + '/' + decision);
+      const fresh = await apiGet<Assessment[]>('/me/assessments');
+      setItems(fresh);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (error) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-20">
+        <p className="meta mb-3">Something went wrong</p>
+        <p className="assessment">{error}</p>
+      </main>
+    );
+  }
+
+  if (!items) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-20">
+        <p className="meta">Loading</p>
+      </main>
+    );
+  }
+
+  const open = items.filter((i) => !i.alert || i.alert.status === 'pending');
+
+  const heading =
+    open.length === 0
+      ? 'Nothing new today'
+      : open.length === 1
+        ? 'One worth your time'
+        : open.length + ' worth your time';
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-20">
       <header className="mb-16">
-        <p className="meta mb-3">Friday, 28 August</p>
+        <p className="meta mb-3">
+          {new Date().toLocaleDateString('en-GB', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          })}
+        </p>
         <h1
           className="numeral text-5xl"
           style={{ fontWeight: 500, letterSpacing: '-0.04em' }}
         >
-          Three worth your time
+          {heading}
         </h1>
+        {open.length === 0 && (
+          <p className="assessment mt-6">
+            GeegLot checks your sources each morning. When something matches, it
+            appears here.
+          </p>
+        )}
       </header>
 
-      <div>
-        {SAMPLE.map((job, i) => (
+      {items.map((a) => {
+        const job = a.jobs;
+        const min = money(job.budget_min, job.currency);
+        const max = money(job.budget_max, job.currency);
+        const pay = min === max ? min : min + '–' + max;
+        const decided = a.alert !== null && a.alert.status !== 'pending';
+        const rejected = a.alert !== null && a.alert.status === 'rejected';
+
+        return (
           <article
-            key={i}
+            key={a.id}
             className="grid grid-cols-[4.5rem_1fr] gap-6 border-t py-10"
-            style={{ borderColor: 'var(--color-rule)' }}
+            style={{
+              borderColor: 'var(--color-rule)',
+              opacity: rejected ? 0.45 : 1,
+            }}
           >
             <div
               className="numeral text-5xl"
               style={{ color: 'var(--color-signal)' }}
             >
-              {job.score}
+              {a.score}
             </div>
 
             <div>
@@ -74,59 +120,106 @@ export default function Home() {
               >
                 {job.title}
               </h2>
-              <p className="mb-5 text-lg" style={{ color: 'var(--color-ink-soft)' }}>
-                {job.company}
+              <p className="meta mb-5">
+                {job.platform} · {job.client_country ?? 'Location not stated'}
               </p>
 
-              <p className="assessment mb-6">{job.assessment}</p>
+              <p className="assessment mb-6">{a.reasoning}</p>
 
               <dl className="mb-6 space-y-2 text-sm">
-                <div className="flex gap-3">
-                  <dt className="meta w-24 shrink-0 pt-0.5">Matches</dt>
-                  <dd>{job.matched.join(', ')}</dd>
-                </div>
-                <div className="flex gap-3">
-                  <dt className="meta w-24 shrink-0 pt-0.5">Watch for</dt>
-                  <dd>{job.concerns.join('; ')}</dd>
-                </div>
-                <div className="flex gap-3">
-                  <dt className="meta w-24 shrink-0 pt-0.5">Pay</dt>
-                  <dd>
-                    {job.pay}
-                    {job.estimated && (
-                      <span style={{ color: 'var(--color-ink-soft)' }}>
-                        {' '}— estimated, not employer-stated
-                      </span>
-                    )}
-                  </dd>
-                </div>
+                {a.matched_skills.length > 0 && (
+                  <div className="flex gap-3">
+                    <dt className="meta w-24 shrink-0 pt-0.5">Matches</dt>
+                    <dd>{a.matched_skills.join(', ')}</dd>
+                  </div>
+                )}
+                {a.concerns.length > 0 && (
+                  <div className="flex gap-3">
+                    <dt className="meta w-24 shrink-0 pt-0.5">Watch for</dt>
+                    <dd>{a.concerns.join('; ')}</dd>
+                  </div>
+                )}
+                {pay !== null && (
+                  <div className="flex gap-3">
+                    <dt className="meta w-24 shrink-0 pt-0.5">Pay</dt>
+                    <dd>
+                      {pay}
+                      {job.salary_is_estimate && (
+                        <span style={{ color: 'var(--color-ink-soft)' }}>
+                          {' '}
+                          — estimated, not employer-stated
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                )}
               </dl>
 
-              <div className="flex items-center gap-4">
-                <button
-                  className="px-4 py-2 text-sm"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    background: 'var(--color-ink)',
-                    color: 'var(--color-paper)',
-                  }}
+              {a.alert !== null && a.alert.proposal_draft !== null && (
+                <div
+                  className="mb-6 border-l-2 pl-5"
+                  style={{ borderColor: 'var(--color-signal)' }}
                 >
-                  Draft a proposal
-                </button>
-                <button
+                  <p className="meta mb-3">Draft — review before sending</p>
+                  <p className="assessment whitespace-pre-wrap">
+                    {a.alert.proposal_draft}
+                  </p>
+                  {a.alert.submission_instructions !== null && (
+                    <div>
+                      <p className="meta mb-2 mt-5">How to submit</p>
+                      <p className="assessment">
+                        {a.alert.submission_instructions}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                {!decided && (
+                  <button
+                    onClick={() => decide(job.id, 'approved')}
+                    disabled={busy === job.id}
+                    className="px-4 py-2 text-sm disabled:opacity-40"
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      background: 'var(--color-ink)',
+                      color: 'var(--color-paper)',
+                    }}
+                  >
+                    {busy === job.id ? 'Drafting' : 'Draft a proposal'}
+                  </button>
+                )}
+                {!decided && (
+                  <button
+                    onClick={() => decide(job.id, 'rejected')}
+                    disabled={busy === job.id}
+                    className="text-sm underline underline-offset-4 disabled:opacity-40"
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      color: 'var(--color-ink-soft)',
+                    }}
+                  >
+                    Not interested
+                  </button>
+                )}
+                <a
+                  href={job.url}
+                  target="_blank"
+                  rel="noreferrer"
                   className="text-sm underline underline-offset-4"
                   style={{
                     fontFamily: 'var(--font-display)',
                     color: 'var(--color-ink-soft)',
                   }}
                 >
-                  Not interested
-                </button>
+                  View posting
+                </a>
               </div>
             </div>
           </article>
-        ))}
-      </div>
+        );
+      })}
     </main>
   );
 }
