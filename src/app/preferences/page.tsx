@@ -1,0 +1,349 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { apiGet, apiPut } from '@/lib/api';
+import { SignOut } from '@/components/sign-out';
+
+interface Preferences {
+  skills: string[];
+  search_queries: string[];
+  excluded_keywords: string[];
+  preferred_platforms: string[];
+  country: string;
+  min_score: number;
+  max_alerts_per_day: number;
+  min_hourly_rate: number | null;
+  profession_context: string | null;
+  seeking: string[];
+}
+
+const PLATFORMS = [
+  { id: 'adzuna', label: 'Adzuna', note: 'Employers across most professions' },
+  { id: 'iskibris', label: 'İşkıbrıs', note: 'North Cyprus' },
+];
+
+const COUNTRIES = [
+  { id: 'gb', label: 'United Kingdom' },
+  { id: 'us', label: 'United States' },
+  { id: 'de', label: 'Germany' },
+  { id: 'nl', label: 'Netherlands' },
+  { id: 'ca', label: 'Canada' },
+  { id: 'au', label: 'Australia' },
+];
+
+/** Comma-separated text ↔ string[] */
+function toList(s: string): string[] {
+  return s
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+export default function PreferencesPage() {
+  const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiGet<Preferences>('/me/preferences')
+      .then(setPrefs)
+      .catch(() => {
+        // No preferences yet — start from a blank set rather than an error.
+        setPrefs({
+          skills: [],
+          search_queries: [],
+          excluded_keywords: [],
+          preferred_platforms: ['adzuna'],
+          country: 'gb',
+          min_score: 70,
+          max_alerts_per_day: 10,
+          min_hourly_rate: null,
+          profession_context: '',
+          seeking: ['employment'],
+        });
+      });
+  }, []);
+
+  function set<K extends keyof Preferences>(key: K, value: Preferences[K]) {
+    if (!prefs) return;
+    setPrefs({ ...prefs, [key]: value });
+    setSaved(false);
+  }
+
+  async function save() {
+    if (!prefs) return;
+    setBusy(true);
+    setError(null);
+    try {
+        await apiPut('/me/preferences', {
+        skills: prefs.skills,
+        search_queries: prefs.search_queries,
+        excluded_keywords: prefs.excluded_keywords,
+        preferred_platforms: prefs.preferred_platforms,
+        country: prefs.country,
+        min_score: prefs.min_score,
+        max_alerts_per_day: prefs.max_alerts_per_day,
+        min_hourly_rate: prefs.min_hourly_rate,
+        profession_context: prefs.profession_context,
+        seeking: prefs.seeking,
+      });
+      setSaved(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!prefs) {
+    return (
+      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
+        <p className="meta">Loading</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
+      <header className="mb-12 sm:mb-16">
+        <div className="mb-6 flex justify-between gap-4">
+          <Link href="/" className="meta underline underline-offset-4">
+            Back to assessments
+          </Link>
+          <SignOut />
+        </div>
+        <h1
+          className="numeral text-4xl sm:text-5xl"
+          style={{ fontWeight: 500, letterSpacing: '-0.04em' }}
+        >
+          What you&rsquo;re looking for
+        </h1>
+        <p className="assessment mt-5">
+          GeegLot uses this to search each morning and to judge what it finds.
+          The more specific you are, the better the assessments.
+        </p>
+      </header>
+
+      <div className="space-y-10">
+        <Field
+          label="About your work"
+          help="A sentence or two in your own words. Your profession, how you like to work, anything that matters."
+        >
+          <textarea
+            value={prefs.profession_context ?? ''}
+            onChange={(e) => set('profession_context', e.target.value)}
+            rows={4}
+            placeholder="Registered nurse, NMC-registered, community settings in and around Nicosia. Prefer day shifts."
+            className="w-full resize-y border-b bg-transparent py-2 outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+
+        <Field
+          label="Search terms"
+          help="What GeegLot types into job boards for you. Comma separated."
+        >
+          <input
+            value={prefs.search_queries.join(', ')}
+            onChange={(e) => set('search_queries', toList(e.target.value))}
+            placeholder="registered nurse, staff nurse"
+            className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+
+        <Field label="Your skills" help="Comma separated.">
+          <input
+            value={prefs.skills.join(', ')}
+            onChange={(e) => set('skills', toList(e.target.value))}
+            placeholder="triage, palliative care, wound management"
+            className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+
+        <Field
+          label="Never show me"
+          help="Postings containing these words are dropped before they cost you anything."
+        >
+          <input
+            value={prefs.excluded_keywords.join(', ')}
+            onChange={(e) => set('excluded_keywords', toList(e.target.value))}
+            placeholder="night shift, agency"
+            className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+
+        <Field label="Where to look">
+          <div className="space-y-3">
+            {PLATFORMS.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={prefs.preferred_platforms.includes(p.id)}
+                  onChange={(e) =>
+                    set(
+                      'preferred_platforms',
+                      e.target.checked
+                        ? [...prefs.preferred_platforms, p.id]
+                        : prefs.preferred_platforms.filter((x) => x !== p.id),
+                    )
+                  }
+                  className="mt-1.5"
+                />
+                <span>
+                  <span className="block">{p.label}</span>
+                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                    {p.note}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Country" help="Applies to Adzuna. İşkıbrıs is always Cyprus.">
+          <select
+            value={prefs.country}
+            onChange={(e) => set('country', e.target.value)}
+            className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="What kind of work">
+          <div className="space-y-3">
+            {[
+              { id: 'employment', label: 'Jobs', note: 'Permanent and fixed-term roles' },
+              { id: 'gig', label: 'Gigs', note: 'Freelance and contract work' },
+            ].map((s) => (
+              <label key={s.id} className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={prefs.seeking.includes(s.id)}
+                  onChange={(e) =>
+                    set(
+                      'seeking',
+                      e.target.checked
+                        ? [...prefs.seeking, s.id]
+                        : prefs.seeking.filter((x) => x !== s.id),
+                    )
+                  }
+                  className="mt-1.5"
+                />
+                <span>
+                  <span className="block">{s.label}</span>
+                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                    {s.note}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Field>
+
+        <Field
+          label="How selective"
+          help="Only postings scoring at or above this reach you."
+        >
+          <div className="flex items-center gap-5">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={prefs.min_score}
+              onChange={(e) => set('min_score', Number(e.target.value))}
+              className="flex-1"
+            />
+            <span
+              className="numeral text-3xl"
+              style={{ color: 'var(--color-signal)', minWidth: '2.5ch' }}
+            >
+              {prefs.min_score}
+            </span>
+          </div>
+        </Field>
+
+        <Field label="Most alerts in a day">
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={prefs.max_alerts_per_day}
+            onChange={(e) => set('max_alerts_per_day', Number(e.target.value))}
+            className="w-24 border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+
+        <Field label="Minimum hourly rate" help="Leave empty if it doesn't apply.">
+          <input
+            type="number"
+            min={0}
+            value={prefs.min_hourly_rate ?? ''}
+            onChange={(e) =>
+              set('min_hourly_rate', e.target.value === '' ? null : Number(e.target.value))
+            }
+            className="w-32 border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-12 flex flex-wrap items-center gap-4 border-t pt-8"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <button
+          onClick={save}
+          disabled={busy}
+          className="px-5 py-3 text-sm disabled:opacity-40"
+          style={{
+            fontFamily: 'var(--font-display)',
+            background: 'var(--color-ink)',
+            color: 'var(--color-paper)',
+          }}
+        >
+          {busy ? 'Saving' : 'Save changes'}
+        </button>
+        {saved && <span className="meta">Saved</span>}
+        {error && (
+          <span className="text-sm" style={{ color: 'var(--color-signal)' }}>
+            {error}
+          </span>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function Field({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="meta mb-2">{label}</p>
+      {help && (
+        <p className="mb-3 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+          {help}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}

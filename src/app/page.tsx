@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiGet, apiPost, type Assessment } from '@/lib/api';
+import { SignOut } from '@/components/sign-out';
 
 function money(n: number | null, currency: string): string | null {
   if (n === null) return null;
@@ -19,6 +21,7 @@ export default function Home() {
   const [items, setItems] = useState<Assessment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [openDraft, setOpenDraft] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<Assessment[]>('/me/assessments')
@@ -32,6 +35,7 @@ export default function Home() {
       await apiPost('/me/assessments/' + jobId + '/' + decision);
       const fresh = await apiGet<Assessment[]>('/me/assessments');
       setItems(fresh);
+      if (decision === 'approved') setOpenDraft(jobId);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -41,7 +45,7 @@ export default function Home() {
 
   if (error) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-20">
+      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
         <p className="meta mb-3">Something went wrong</p>
         <p className="assessment">{error}</p>
       </main>
@@ -50,7 +54,7 @@ export default function Home() {
 
   if (!items) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-20">
+      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
         <p className="meta">Loading</p>
       </main>
     );
@@ -66,17 +70,25 @@ export default function Home() {
         : open.length + ' worth your time';
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-20">
-      <header className="mb-16">
-        <p className="meta mb-3">
-          {new Date().toLocaleDateString('en-GB', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          })}
-        </p>
+    <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
+      <header className="mb-12 sm:mb-16">
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <p className="meta">
+            {new Date().toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
+          </p>
+          <span className="flex gap-5">
+            <Link href="/preferences" className="meta underline underline-offset-4">
+              Preferences
+            </Link>
+            <SignOut />
+          </span>
+        </div>
         <h1
-          className="numeral text-5xl"
+          className="numeral text-4xl sm:text-5xl"
           style={{ fontWeight: 500, letterSpacing: '-0.04em' }}
         >
           {heading}
@@ -96,58 +108,67 @@ export default function Home() {
         const pay = min === max ? min : min + '–' + max;
         const decided = a.alert !== null && a.alert.status !== 'pending';
         const rejected = a.alert !== null && a.alert.status === 'rejected';
+        const draft = a.alert ? a.alert.proposal_draft : null;
+        const showing = openDraft === job.id;
 
         return (
           <article
             key={a.id}
-            className="grid grid-cols-[4.5rem_1fr] gap-6 border-t py-10"
+            className="border-t py-8 sm:grid sm:grid-cols-[4.5rem_1fr] sm:gap-6 sm:py-10"
             style={{
               borderColor: 'var(--color-rule)',
               opacity: rejected ? 0.45 : 1,
             }}
           >
             <div
-              className="numeral text-5xl"
+              className="numeral mb-3 text-4xl sm:mb-0 sm:text-5xl"
               style={{ color: 'var(--color-signal)' }}
             >
               {a.score}
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h2
-                className="numeral mb-1 text-2xl"
+                className="numeral mb-1 text-xl sm:text-2xl"
                 style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
               >
                 {job.title}
               </h2>
               <p className="meta mb-5">
-                {job.platform} · {job.client_country ?? 'Location not stated'}
+                {job.platform} &middot;{' '}
+                {job.client_country ?? 'Location not stated'}
               </p>
 
               <p className="assessment mb-6">{a.reasoning}</p>
 
-              <dl className="mb-6 space-y-2 text-sm">
+              <dl className="mb-6 space-y-3 text-sm">
                 {a.matched_skills.length > 0 && (
-                  <div className="flex gap-3">
-                    <dt className="meta w-24 shrink-0 pt-0.5">Matches</dt>
+                  <div className="sm:flex sm:gap-3">
+                    <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                      Matches
+                    </dt>
                     <dd>{a.matched_skills.join(', ')}</dd>
                   </div>
                 )}
                 {a.concerns.length > 0 && (
-                  <div className="flex gap-3">
-                    <dt className="meta w-24 shrink-0 pt-0.5">Watch for</dt>
+                  <div className="sm:flex sm:gap-3">
+                    <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                      Watch for
+                    </dt>
                     <dd>{a.concerns.join('; ')}</dd>
                   </div>
                 )}
                 {pay !== null && (
-                  <div className="flex gap-3">
-                    <dt className="meta w-24 shrink-0 pt-0.5">Pay</dt>
+                  <div className="sm:flex sm:gap-3">
+                    <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                      Pay
+                    </dt>
                     <dd>
                       {pay}
                       {job.salary_is_estimate && (
                         <span style={{ color: 'var(--color-ink-soft)' }}>
                           {' '}
-                          — estimated, not employer-stated
+                          &mdash; estimated, not employer-stated
                         </span>
                       )}
                     </dd>
@@ -155,16 +176,35 @@ export default function Home() {
                 )}
               </dl>
 
-              {a.alert !== null && a.alert.proposal_draft !== null && (
+              {draft !== null && !showing && (
+                <button
+                  onClick={() => setOpenDraft(job.id)}
+                  className="mb-6 block text-sm underline underline-offset-4"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    color: 'var(--color-signal)',
+                  }}
+                >
+                  Read the draft
+                </button>
+              )}
+
+              {draft !== null && showing && (
                 <div
-                  className="mb-6 border-l-2 pl-5"
+                  className="mb-6 border-l-2 pl-4 sm:pl-5"
                   style={{ borderColor: 'var(--color-signal)' }}
                 >
-                  <p className="meta mb-3">Draft — review before sending</p>
-                  <p className="assessment whitespace-pre-wrap">
-                    {a.alert.proposal_draft}
-                  </p>
-                  {a.alert.submission_instructions !== null && (
+                  <div className="mb-3 flex items-baseline justify-between gap-4">
+                    <p className="meta">Draft &mdash; review before sending</p>
+                    <button
+                      onClick={() => setOpenDraft(null)}
+                      className="meta underline underline-offset-4"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <p className="assessment whitespace-pre-wrap">{draft}</p>
+                  {a.alert && a.alert.submission_instructions && (
                     <div>
                       <p className="meta mb-2 mt-5">How to submit</p>
                       <p className="assessment">
@@ -175,12 +215,12 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                 {!decided && (
                   <button
                     onClick={() => decide(job.id, 'approved')}
                     disabled={busy === job.id}
-                    className="px-4 py-2 text-sm disabled:opacity-40"
+                    className="px-4 py-2.5 text-sm disabled:opacity-40"
                     style={{
                       fontFamily: 'var(--font-display)',
                       background: 'var(--color-ink)',
