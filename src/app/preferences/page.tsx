@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiGet, apiPut } from '@/lib/api';
 import { SignOut } from '@/components/sign-out';
+import { CvUpload } from '@/components/cv-upload';
 
 interface Preferences {
   skills: string[];
@@ -127,6 +128,8 @@ export default function PreferencesPage() {
       </header>
 
       <div className="space-y-10">
+        <CvUpload />
+
         <Field
           label="About your work"
           help="A sentence or two in your own words. Your profession, how you like to work, anything that matters."
