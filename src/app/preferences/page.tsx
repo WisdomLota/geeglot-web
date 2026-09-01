@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPut } from '@/lib/api';
-import { SignOut } from '@/components/sign-out';
+import { apiGet, apiPut, apiPost, apiDelete } from '@/lib/api';
 import { CvUpload } from '@/components/cv-upload';
+import { SignOut } from '@/components/sign-out';
 
 interface Preferences {
   skills: string[];
@@ -17,6 +17,12 @@ interface Preferences {
   min_hourly_rate: number | null;
   profession_context: string | null;
   seeking: string[];
+}
+
+interface Profile {
+  email: string | null;
+  alert_channel: string;
+  telegram_chat_id: string | null;
 }
 
 const PLATFORMS = [
@@ -33,7 +39,6 @@ const COUNTRIES = [
   { id: 'au', label: 'Australia' },
 ];
 
-/** Comma-separated text ↔ string[] */
 function toList(s: string): string[] {
   return s
     .split(',')
@@ -43,15 +48,18 @@ function toList(s: string): string[] {
 
 export default function PreferencesPage() {
   const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   useEffect(() => {
+    apiGet<Profile>('/me/profile').then(setProfile).catch(() => {});
+
     apiGet<Preferences>('/me/preferences')
       .then(setPrefs)
       .catch(() => {
-        // No preferences yet — start from a blank set rather than an error.
         setPrefs({
           skills: [],
           search_queries: [],
@@ -73,12 +81,45 @@ export default function PreferencesPage() {
     setSaved(false);
   }
 
+  async function setChannel(channel: string) {
+    if (!profile) return;
+    setProfile({ ...profile, alert_channel: channel });
+    try {
+      await apiPut('/me/profile', { alert_channel: channel });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function connectTelegram() {
+    setLinking(true);
+    setError(null);
+    try {
+      const { url } = await apiPost<{ url: string }>('/me/telegram/link');
+      window.open(url, '_blank');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  async function disconnectTelegram() {
+    try {
+      await apiDelete('/me/telegram');
+      const fresh = await apiGet<Profile>('/me/profile');
+      setProfile(fresh);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   async function save() {
     if (!prefs) return;
     setBusy(true);
     setError(null);
     try {
-        await apiPut('/me/preferences', {
+      await apiPut('/me/preferences', {
         skills: prefs.skills,
         search_queries: prefs.search_queries,
         excluded_keywords: prefs.excluded_keywords,
@@ -100,14 +141,18 @@ export default function PreferencesPage() {
 
   if (!prefs) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
+      <main className="mx-auto max-w-2xl px-5 py-16 sm:px-6 sm:py-20">
         <p className="meta">Loading</p>
       </main>
     );
   }
 
+  const linked = profile?.telegram_chat_id != null;
+  const wantsTelegram =
+    profile?.alert_channel === 'telegram' || profile?.alert_channel === 'both';
+
   return (
-    <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
+    <main className="mx-auto max-w-2xl px-5 py-16 sm:px-6 sm:py-20">
       <header className="mb-12 sm:mb-16">
         <div className="mb-6 flex justify-between gap-4">
           <Link href="/" className="meta underline underline-offset-4">
@@ -138,7 +183,6 @@ export default function PreferencesPage() {
             value={prefs.profession_context ?? ''}
             onChange={(e) => set('profession_context', e.target.value)}
             rows={4}
-            placeholder="Registered nurse, NMC-registered, community settings in and around Nicosia. Prefer day shifts."
             className="w-full resize-y border-b bg-transparent py-2 outline-none focus:border-current"
             style={{ borderColor: 'var(--color-rule)' }}
           />
@@ -151,7 +195,6 @@ export default function PreferencesPage() {
           <input
             value={prefs.search_queries.join(', ')}
             onChange={(e) => set('search_queries', toList(e.target.value))}
-            placeholder="registered nurse, staff nurse"
             className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
             style={{ borderColor: 'var(--color-rule)' }}
           />
@@ -161,7 +204,6 @@ export default function PreferencesPage() {
           <input
             value={prefs.skills.join(', ')}
             onChange={(e) => set('skills', toList(e.target.value))}
-            placeholder="triage, palliative care, wound management"
             className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
             style={{ borderColor: 'var(--color-rule)' }}
           />
@@ -174,7 +216,6 @@ export default function PreferencesPage() {
           <input
             value={prefs.excluded_keywords.join(', ')}
             onChange={(e) => set('excluded_keywords', toList(e.target.value))}
-            placeholder="night shift, agency"
             className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
             style={{ borderColor: 'var(--color-rule)' }}
           />
@@ -303,7 +344,8 @@ export default function PreferencesPage() {
         </Field>
       </div>
 
-      <div className="mt-12 flex flex-wrap items-center gap-4 border-t pt-8"
+      <div
+        className="mt-12 flex flex-wrap items-center gap-4 border-t pt-8"
         style={{ borderColor: 'var(--color-rule)' }}
       >
         <button
@@ -319,12 +361,91 @@ export default function PreferencesPage() {
           {busy ? 'Saving' : 'Save changes'}
         </button>
         {saved && <span className="meta">Saved</span>}
-        {error && (
-          <span className="text-sm" style={{ color: 'var(--color-signal)' }}>
-            {error}
-          </span>
-        )}
       </div>
+
+      {/* Delivery settings save on change, so they sit below the save button. */}
+      <section
+        className="mt-16 border-t pt-10"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <h2
+          className="numeral mb-6 text-2xl"
+          style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+        >
+          How we reach you
+        </h2>
+
+        <div className="mb-8 space-y-3">
+          {[
+            {
+              id: 'email',
+              label: 'Email',
+              note: profile?.email ?? 'Your account address',
+            },
+            { id: 'telegram', label: 'Telegram', note: 'Tap to approve straight from the chat' },
+            { id: 'both', label: 'Both', note: '' },
+          ].map((c) => (
+            <label key={c.id} className="flex cursor-pointer items-start gap-3">
+              <input
+                type="radio"
+                name="channel"
+                checked={profile?.alert_channel === c.id}
+                onChange={() => setChannel(c.id)}
+                className="mt-1.5"
+              />
+              <span>
+                <span className="block">{c.label}</span>
+                {c.note && (
+                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                    {c.note}
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {wantsTelegram && (
+          <div>
+            <p className="meta mb-2">Telegram</p>
+            {linked ? (
+              <div className="flex flex-wrap items-baseline gap-4">
+                <span>Connected</span>
+                <button
+                  onClick={disconnectTelegram}
+                  className="meta underline underline-offset-4"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-4 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                  Opens Telegram and connects this account. Takes one tap.
+                </p>
+                <button
+                  onClick={connectTelegram}
+                  disabled={linking}
+                  className="px-4 py-2.5 text-sm disabled:opacity-40"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    background: 'var(--color-ink)',
+                    color: 'var(--color-paper)',
+                  }}
+                >
+                  {linking ? 'Opening Telegram' : 'Connect Telegram'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {error && (
+        <p className="mt-6 text-sm" style={{ color: 'var(--color-signal)' }}>
+          {error}
+        </p>
+      )}
     </main>
   );
 }
