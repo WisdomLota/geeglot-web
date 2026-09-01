@@ -53,9 +53,12 @@ export default function PreferencesPage() {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [linkUrl, setLinkUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    apiGet<Profile>('/me/profile').then(setProfile).catch(() => {});
+    apiGet<Profile>('/me/profile')
+      .then(setProfile)
+      .catch(() => {});
 
     apiGet<Preferences>('/me/preferences')
       .then(setPrefs)
@@ -91,12 +94,16 @@ export default function PreferencesPage() {
     }
   }
 
+  /**
+   * We fetch the link and render it as an anchor rather than calling
+   * window.open, which mobile browsers block when it follows an await.
+   */
   async function connectTelegram() {
     setLinking(true);
     setError(null);
     try {
       const { url } = await apiPost<{ url: string }>('/me/telegram/link');
-      window.open(url, '_blank');
+      setLinkUrl(url);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -109,6 +116,7 @@ export default function PreferencesPage() {
       await apiDelete('/me/telegram');
       const fresh = await apiGet<Profile>('/me/profile');
       setProfile(fresh);
+      setLinkUrl(null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -224,7 +232,10 @@ export default function PreferencesPage() {
         <Field label="Where to look">
           <div className="space-y-3">
             {PLATFORMS.map((p) => (
-              <label key={p.id} className="flex cursor-pointer items-start gap-3">
+              <label
+                key={p.id}
+                className="flex cursor-pointer items-start gap-3"
+              >
                 <input
                   type="checkbox"
                   checked={prefs.preferred_platforms.includes(p.id)}
@@ -240,7 +251,10 @@ export default function PreferencesPage() {
                 />
                 <span>
                   <span className="block">{p.label}</span>
-                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                  <span
+                    className="text-sm"
+                    style={{ color: 'var(--color-ink-soft)' }}
+                  >
                     {p.note}
                   </span>
                 </span>
@@ -249,7 +263,10 @@ export default function PreferencesPage() {
           </div>
         </Field>
 
-        <Field label="Country" help="Applies to Adzuna. İşkıbrıs is always Cyprus.">
+        <Field
+          label="Country"
+          help="Applies to Adzuna. İşkıbrıs is always Cyprus."
+        >
           <select
             value={prefs.country}
             onChange={(e) => set('country', e.target.value)}
@@ -267,10 +284,21 @@ export default function PreferencesPage() {
         <Field label="What kind of work">
           <div className="space-y-3">
             {[
-              { id: 'employment', label: 'Jobs', note: 'Permanent and fixed-term roles' },
-              { id: 'gig', label: 'Gigs', note: 'Freelance and contract work' },
+              {
+                id: 'employment',
+                label: 'Jobs',
+                note: 'Permanent and fixed-term roles',
+              },
+              {
+                id: 'gig',
+                label: 'Gigs',
+                note: 'Freelance and contract work',
+              },
             ].map((s) => (
-              <label key={s.id} className="flex cursor-pointer items-start gap-3">
+              <label
+                key={s.id}
+                className="flex cursor-pointer items-start gap-3"
+              >
                 <input
                   type="checkbox"
                   checked={prefs.seeking.includes(s.id)}
@@ -286,7 +314,10 @@ export default function PreferencesPage() {
                 />
                 <span>
                   <span className="block">{s.label}</span>
-                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                  <span
+                    className="text-sm"
+                    style={{ color: 'var(--color-ink-soft)' }}
+                  >
                     {s.note}
                   </span>
                 </span>
@@ -330,13 +361,19 @@ export default function PreferencesPage() {
           />
         </Field>
 
-        <Field label="Minimum hourly rate" help="Leave empty if it doesn't apply.">
+        <Field
+          label="Minimum hourly rate"
+          help="Leave empty if it doesn't apply."
+        >
           <input
             type="number"
             min={0}
             value={prefs.min_hourly_rate ?? ''}
             onChange={(e) =>
-              set('min_hourly_rate', e.target.value === '' ? null : Number(e.target.value))
+              set(
+                'min_hourly_rate',
+                e.target.value === '' ? null : Number(e.target.value),
+              )
             }
             className="w-32 border-b bg-transparent py-2 text-lg outline-none focus:border-current"
             style={{ borderColor: 'var(--color-rule)' }}
@@ -363,7 +400,6 @@ export default function PreferencesPage() {
         {saved && <span className="meta">Saved</span>}
       </div>
 
-      {/* Delivery settings save on change, so they sit below the save button. */}
       <section
         className="mt-16 border-t pt-10"
         style={{ borderColor: 'var(--color-rule)' }}
@@ -382,7 +418,11 @@ export default function PreferencesPage() {
               label: 'Email',
               note: profile?.email ?? 'Your account address',
             },
-            { id: 'telegram', label: 'Telegram', note: 'Tap to approve straight from the chat' },
+            {
+              id: 'telegram',
+              label: 'Telegram',
+              note: 'Tap to approve straight from the chat',
+            },
             { id: 'both', label: 'Both', note: '' },
           ].map((c) => (
             <label key={c.id} className="flex cursor-pointer items-start gap-3">
@@ -396,7 +436,10 @@ export default function PreferencesPage() {
               <span>
                 <span className="block">{c.label}</span>
                 {c.note && (
-                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                  <span
+                    className="text-sm"
+                    style={{ color: 'var(--color-ink-soft)' }}
+                  >
                     {c.note}
                   </span>
                 )}
@@ -408,7 +451,8 @@ export default function PreferencesPage() {
         {wantsTelegram && (
           <div>
             <p className="meta mb-2">Telegram</p>
-            {linked ? (
+
+            {linked && (
               <div className="flex flex-wrap items-baseline gap-4">
                 <span>Connected</span>
                 <button
@@ -418,10 +462,16 @@ export default function PreferencesPage() {
                   Disconnect
                 </button>
               </div>
-            ) : (
+            )}
+
+            {!linked && linkUrl === null && (
               <div>
-                <p className="mb-4 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
-                  Opens Telegram and connects this account. Takes one tap.
+                <p
+                  className="mb-4 text-sm"
+                  style={{ color: 'var(--color-ink-soft)' }}
+                >
+                  Connects this account to the GeegLot bot so alerts arrive in
+                  your Telegram.
                 </p>
                 <button
                   onClick={connectTelegram}
@@ -433,8 +483,33 @@ export default function PreferencesPage() {
                     color: 'var(--color-paper)',
                   }}
                 >
-                  {linking ? 'Opening Telegram' : 'Connect Telegram'}
+                  {linking ? 'One moment' : 'Connect Telegram'}
                 </button>
+              </div>
+            )}
+
+            {!linked && linkUrl !== null && (
+              <div>
+                <p
+                  className="mb-4 text-sm"
+                  style={{ color: 'var(--color-ink-soft)' }}
+                >
+                  Open Telegram and press Start. Come back here afterwards and
+                  reload to confirm.
+                </p>
+                <a
+                  href={linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block px-4 py-2.5 text-sm"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    background: 'var(--color-ink)',
+                    color: 'var(--color-paper)',
+                  }}
+                >
+                  Open Telegram
+                </a>
               </div>
             )}
           </div>
