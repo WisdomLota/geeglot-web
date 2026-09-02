@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPut, apiPost, apiUpload } from '@/lib/api';
 
-type Step = 'name' | 'cv' | 'review' | 'channel';
+type Step = 'name' | 'cv' | 'review' | 'channel' | 'telegram';
 
 interface Proposal {
   profession_context: string;
@@ -24,6 +24,21 @@ const COUNTRIES = [
   { id: 'au', label: 'Australia' },
 ];
 
+const RESIDENCE = [
+  { id: 'cy', label: 'Cyprus' },
+  { id: 'tr', label: 'Türkiye' },
+  { id: 'ng', label: 'Nigeria' },
+  { id: 'gb', label: 'United Kingdom' },
+  { id: 'us', label: 'United States' },
+  { id: 'de', label: 'Germany' },
+  { id: 'nl', label: 'Netherlands' },
+  { id: 'ca', label: 'Canada' },
+  { id: 'au', label: 'Australia' },
+  { id: 'za', label: 'South Africa' },
+  { id: 'in', label: 'India' },
+  { id: 'br', label: 'Brazil' },
+];
+
 function toList(s: string): string[] {
   return s
     .split(',')
@@ -41,6 +56,7 @@ export default function Onboarding() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [cyprus, setCyprus] = useState(false);
   const [channel, setChannel] = useState('email');
+  const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Anyone who already has preferences doesn't need this flow.
@@ -93,6 +109,24 @@ export default function Onboarding() {
     setStep('review');
   }
 
+  async function connectTelegram() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await apiPost<{ url: string }>('/me/telegram/link');
+      setLinkUrl(url);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function goToDashboard() {
+    router.push('/app');
+    router.refresh();
+  }
+
   async function finish() {
     if (!proposal) return;
     setBusy(true);
@@ -102,7 +136,9 @@ export default function Onboarding() {
         skills: proposal.skills,
         search_queries: proposal.search_queries,
         excluded_keywords: [],
-        preferred_platforms: cyprus ? ['adzuna', 'iskibris'] : ['adzuna'],
+        preferred_platforms: cyprus
+          ? ['adzuna', 'iskibris', 'himalayas', 'remotive']
+          : ['adzuna', 'himalayas', 'remotive'],
         country: proposal.country,
         min_score: 60,
         max_alerts_per_day: 5,
@@ -112,8 +148,15 @@ export default function Onboarding() {
         residence_country: proposal.residence_country,
       });
       await apiPut('/me/profile', { alert_channel: channel });
-      router.push('/app');
-      router.refresh();
+
+      // Telegram needs a chat link, so don't drop them at the dashboard yet.
+      if (channel === 'telegram' || channel === 'both') {
+        setBusy(false);
+        setStep('telegram');
+        return;
+      }
+
+      goToDashboard();
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -168,13 +211,16 @@ export default function Onboarding() {
           <p className="assessment mb-4">
             This is the quickest way to set GeegLot up. It reads your CV and
             works out what to search for, what you&rsquo;re good at, and what
-            kind of work to look for. You&rsquo;ll see everything it suggests
-            and can change any of it.
+            kind of work suits you. You&rsquo;ll see everything it suggests and
+            can change any of it.
           </p>
-          <p className="assessment mb-8" style={{ color: 'var(--color-ink-soft)' }}>
+          <p
+            className="assessment mb-8"
+            style={{ color: 'var(--color-ink-soft)' }}
+          >
             It also means the applications it drafts reference your real
-            experience rather than leaving gaps for you to fill in. PDF, up to
-            5MB.
+            experience rather than leaving gaps for you to fill in. PDF or Word,
+            up to 5MB.
           </p>
 
           <input
@@ -190,7 +236,7 @@ export default function Onboarding() {
 
           <div className="flex flex-wrap items-center gap-5">
             <Primary onClick={() => inputRef.current?.click()} disabled={busy}>
-              {busy ? 'Reading your CV' : 'Choose a PDF'}
+              {busy ? 'Reading your CV' : 'Choose a file'}
             </Primary>
             <button
               onClick={skipCv}
@@ -206,7 +252,10 @@ export default function Onboarding() {
           </div>
 
           {busy && (
-            <p className="assessment mt-6" style={{ color: 'var(--color-ink-soft)' }}>
+            <p
+              className="assessment mt-6"
+              style={{ color: 'var(--color-ink-soft)' }}
+            >
               This takes about twenty seconds.
             </p>
           )}
@@ -224,6 +273,7 @@ export default function Onboarding() {
               Upload a CV instead
             </button>
           </div>
+
           <h1
             className="numeral mb-6 text-3xl sm:text-4xl"
             style={{ fontWeight: 500, letterSpacing: '-0.03em' }}
@@ -250,7 +300,10 @@ export default function Onboarding() {
 
             <div>
               <p className="meta mb-2">What to search for</p>
-              <p className="mb-3 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+              <p
+                className="mb-3 text-sm"
+                style={{ color: 'var(--color-ink-soft)' }}
+              >
                 Job titles, comma separated.
               </p>
               <input
@@ -276,10 +329,21 @@ export default function Onboarding() {
               <p className="meta mb-2">What kind of work</p>
               <div className="space-y-3">
                 {[
-                  { id: 'employment', label: 'Jobs', note: 'Permanent and fixed-term roles' },
-                  { id: 'gig', label: 'Gigs', note: 'Freelance and contract work' },
+                  {
+                    id: 'employment',
+                    label: 'Jobs',
+                    note: 'Permanent and fixed-term roles',
+                  },
+                  {
+                    id: 'gig',
+                    label: 'Gigs',
+                    note: 'Freelance and contract work',
+                  },
                 ].map((s) => (
-                  <label key={s.id} className="flex cursor-pointer items-start gap-3">
+                  <label
+                    key={s.id}
+                    className="flex cursor-pointer items-start gap-3"
+                  >
                     <input
                       type="checkbox"
                       checked={proposal.seeking.includes(s.id)}
@@ -295,7 +359,10 @@ export default function Onboarding() {
                     />
                     <span>
                       <span className="block">{s.label}</span>
-                      <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                      <span
+                        className="text-sm"
+                        style={{ color: 'var(--color-ink-soft)' }}
+                      >
                         {s.note}
                       </span>
                     </span>
@@ -306,29 +373,27 @@ export default function Onboarding() {
 
             <div>
               <p className="meta mb-2">Where you live</p>
-              <p className="mb-3 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+              <p
+                className="mb-3 text-sm"
+                style={{ color: 'var(--color-ink-soft)' }}
+              >
                 Some jobs restrict who can apply. This helps me tell you when
                 that affects you.
               </p>
               <select
                 value={proposal.residence_country ?? ''}
-                onChange={(e) => set('residence_country', e.target.value || null)}
+                onChange={(e) =>
+                  set('residence_country', e.target.value || null)
+                }
                 className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
                 style={{ borderColor: 'var(--color-rule)' }}
               >
                 <option value="">Prefer not to say</option>
-                <option value="cy">Cyprus</option>
-                <option value="tr">Türkiye</option>
-                <option value="ng">Nigeria</option>
-                <option value="gb">United Kingdom</option>
-                <option value="us">United States</option>
-                <option value="de">Germany</option>
-                <option value="nl">Netherlands</option>
-                <option value="ca">Canada</option>
-                <option value="au">Australia</option>
-                <option value="za">South Africa</option>
-                <option value="in">India</option>
-                <option value="br">Brazil</option>
+                {RESIDENCE.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -356,7 +421,10 @@ export default function Onboarding() {
                 />
                 <span>
                   <span className="block">Also search North Cyprus</span>
-                  <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                  <span
+                    className="text-sm"
+                    style={{ color: 'var(--color-ink-soft)' }}
+                  >
                     Local listings from İşkıbrıs
                   </span>
                 </span>
@@ -388,11 +456,22 @@ export default function Onboarding() {
 
           <div className="mb-10 space-y-4">
             {[
-              { id: 'email', label: 'Email', note: 'Sent to the address you signed up with' },
-              { id: 'telegram', label: 'Telegram', note: 'Needs a quick one-time setup' },
+              {
+                id: 'email',
+                label: 'Email',
+                note: 'Sent to the address you signed up with',
+              },
+              {
+                id: 'telegram',
+                label: 'Telegram',
+                note: 'Approve straight from the chat',
+              },
               { id: 'both', label: 'Both', note: '' },
             ].map((c) => (
-              <label key={c.id} className="flex cursor-pointer items-start gap-3">
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-start gap-3"
+              >
                 <input
                   type="radio"
                   name="channel"
@@ -403,7 +482,10 @@ export default function Onboarding() {
                 <span>
                   <span className="block">{c.label}</span>
                   {c.note && (
-                    <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                    <span
+                      className="text-sm"
+                      style={{ color: 'var(--color-ink-soft)' }}
+                    >
                       {c.note}
                     </span>
                   )}
@@ -415,6 +497,65 @@ export default function Onboarding() {
           <Primary onClick={finish} disabled={busy}>
             {busy ? 'Setting things up' : 'Start finding work'}
           </Primary>
+        </div>
+      )}
+
+      {step === 'telegram' && (
+        <div>
+          <p className="meta mb-3">One last step</p>
+          <h1
+            className="numeral mb-6 text-3xl sm:text-4xl"
+            style={{ fontWeight: 500, letterSpacing: '-0.03em' }}
+          >
+            Connect your Telegram
+          </h1>
+          <p className="assessment mb-8">
+            Open the chat and press Start. That links this account so I know
+            where to send your alerts.
+          </p>
+
+          {linkUrl === null && (
+            <Primary onClick={connectTelegram} disabled={busy}>
+              {busy ? 'One moment' : 'Get my link'}
+            </Primary>
+          )}
+
+          {linkUrl !== null && (
+            <div>
+              <a
+                href={linkUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mb-6 inline-block px-5 py-3 text-sm"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  background: 'var(--color-ink)',
+                  color: 'var(--color-paper)',
+                }}
+              >
+                Open Telegram
+              </a>
+              <p>
+                <button
+                  onClick={goToDashboard}
+                  className="text-sm underline underline-offset-4"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    color: 'var(--color-ink-soft)',
+                  }}
+                >
+                  Done &mdash; take me to my dashboard
+                </button>
+              </p>
+            </div>
+          )}
+
+          <p
+            className="assessment mt-8 text-sm"
+            style={{ color: 'var(--color-ink-soft)' }}
+          >
+            You can also do this later from Preferences.
+          </p>
         </div>
       )}
 
