@@ -28,6 +28,8 @@ interface Profile {
 const PLATFORMS = [
   { id: 'adzuna', label: 'Adzuna', note: 'Employers across most professions' },
   { id: 'iskibris', label: 'İşkıbrıs', note: 'North Cyprus' },
+  { id: 'himalayas', label: 'Himalayas', note: 'Remote jobs worldwide' },
+  { id: 'remotive', label: 'Remotive', note: 'Remote roles, states who can apply' },
 ];
 
 const COUNTRIES = [

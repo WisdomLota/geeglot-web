@@ -45,7 +45,7 @@ export default function Onboarding() {
   // Anyone who already has preferences doesn't need this flow.
   useEffect(() => {
     apiGet('/me/preferences')
-      .then(() => router.replace('/'))
+      .then(() => router.replace('/app'))
       .catch(() => {});
   }, [router]);
 
