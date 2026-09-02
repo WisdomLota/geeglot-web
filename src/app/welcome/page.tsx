@@ -12,6 +12,7 @@ interface Proposal {
   skills: string[];
   seeking: string[];
   country: string;
+  residence_country: string | null;
 }
 
 const COUNTRIES = [
@@ -87,6 +88,7 @@ export default function Onboarding() {
       skills: [],
       seeking: ['employment'],
       country: 'gb',
+      residence_country: null,
     });
     setStep('review');
   }
@@ -107,6 +109,7 @@ export default function Onboarding() {
         min_hourly_rate: null,
         profession_context: proposal.profession_context,
         seeking: proposal.seeking,
+        residence_country: proposal.residence_country,
       });
       await apiPut('/me/profile', { alert_channel: channel });
       router.push('/app');
@@ -291,6 +294,34 @@ export default function Onboarding() {
                   </label>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <p className="meta mb-2">Where you live</p>
+              <p className="mb-3 text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+                Some jobs restrict who can apply. This helps me tell you when
+                that affects you.
+              </p>
+              <select
+                value={proposal.residence_country ?? ''}
+                onChange={(e) => set('residence_country', e.target.value || null)}
+                className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+                style={{ borderColor: 'var(--color-rule)' }}
+              >
+                <option value="">Prefer not to say</option>
+                <option value="cy">Cyprus</option>
+                <option value="tr">Türkiye</option>
+                <option value="ng">Nigeria</option>
+                <option value="gb">United Kingdom</option>
+                <option value="us">United States</option>
+                <option value="de">Germany</option>
+                <option value="nl">Netherlands</option>
+                <option value="ca">Canada</option>
+                <option value="au">Australia</option>
+                <option value="za">South Africa</option>
+                <option value="in">India</option>
+                <option value="br">Brazil</option>
+              </select>
             </div>
 
             <div>
