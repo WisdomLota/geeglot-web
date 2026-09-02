@@ -215,7 +215,15 @@ export default function Onboarding() {
 
       {step === 'review' && proposal && (
         <div>
-          <p className="meta mb-3">Step 3 of 3</p>
+          <div className="mb-3 flex items-baseline justify-between gap-4">
+            <p className="meta">Step 3 of 3</p>
+            <button
+              onClick={() => setStep('cv')}
+              className="meta underline underline-offset-4"
+            >
+              Upload a CV instead
+            </button>
+          </div>
           <h1
             className="numeral mb-6 text-3xl sm:text-4xl"
             style={{ fontWeight: 500, letterSpacing: '-0.03em' }}
