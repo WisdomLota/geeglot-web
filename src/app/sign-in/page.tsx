@@ -37,7 +37,7 @@ export default function SignIn() {
       if (error) return setError(error.message);
     }
 
-    router.push('/');
+    router.push('/app');
     router.refresh();
   }
 

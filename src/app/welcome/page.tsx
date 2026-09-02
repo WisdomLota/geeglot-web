@@ -109,7 +109,7 @@ export default function Onboarding() {
         seeking: proposal.seeking,
       });
       await apiPut('/me/profile', { alert_channel: channel });
-      router.push('/');
+      router.push('/app');
       router.refresh();
     } catch (e) {
       setError((e as Error).message);

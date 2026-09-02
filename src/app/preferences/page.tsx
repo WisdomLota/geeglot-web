@@ -163,7 +163,7 @@ export default function PreferencesPage() {
     <main className="mx-auto max-w-2xl px-5 py-16 sm:px-6 sm:py-20">
       <header className="mb-12 sm:mb-16">
         <div className="mb-6 flex justify-between gap-4">
-          <Link href="/" className="meta underline underline-offset-4">
+          <Link href="/app" className="meta underline underline-offset-4">
             Back to assessments
           </Link>
           <SignOut />

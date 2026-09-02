@@ -1,298 +1,332 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost, type Assessment } from '@/lib/api';
-import { SignOut } from '@/components/sign-out';
-import { useRouter } from 'next/navigation';
+import type { Metadata } from 'next';
 
-function money(n: number | null, currency: string): string | null {
-  if (n === null) return null;
-  const symbols: Record<string, string> = {
-    GBP: '£',
-    USD: '$',
-    EUR: '€',
-    TRY: '₺',
-  };
-  const symbol = symbols[currency] ?? currency + ' ';
-  return symbol + Math.round(n).toLocaleString();
-}
+export const metadata: Metadata = {
+  title: 'GeegLot — I check the job boards. You decide.',
+  description:
+    'GeegLot reads job and gig listings against what you are looking for, and gets in touch only when something is worth your time. It drafts the application. You send it.',
+  openGraph: {
+    title: 'GeegLot — I check the job boards. You decide.',
+    description:
+      'Stop refreshing job boards. GeegLot reads them for you and only gets in touch when something is genuinely worth your time.',
+    url: 'https://geeglot.com',
+    siteName: 'GeegLot',
+    type: 'website',
+  },
+};
 
-export default function Home() {
-  const [items, setItems] = useState<Assessment[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [openDraft, setOpenDraft] = useState<string | null>(null);
-  const [showHandled, setShowHandled] = useState(false);
-  
-  const router = useRouter();
-
-  useEffect(() => {
-    apiGet('/me/preferences')
-      .then(() =>
-        apiGet<Assessment[]>('/me/assessments')
-          .then(setItems)
-          .catch((e: Error) => setError(e.message)),
-      )
-      .catch(() => router.replace('/welcome'));
-  }, [router]);
-
-  async function decide(jobId: string, decision: 'approved' | 'rejected') {
-    setBusy(jobId);
-    try {
-      await apiPost('/me/assessments/' + jobId + '/' + decision);
-      const fresh = await apiGet<Assessment[]>('/me/assessments');
-      setItems(fresh);
-      if (decision === 'approved') setOpenDraft(jobId);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  if (error) {
-    return (
-      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
-        <p className="meta mb-3">Something went wrong</p>
-        <p className="assessment">{error}</p>
-      </main>
-    );
-  }
-
-  if (!items) {
-    return (
-      <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
-        <p className="meta">Loading</p>
-      </main>
-    );
-  }
-
-  const isHandled = (a: Assessment) =>
-    a.alert !== null &&
-    (a.alert.status === 'approved' || a.alert.status === 'rejected');
-
-  const open = items.filter((a) => !isHandled(a));
-  const handled = items.filter(isHandled);
-
-  const heading =
-    open.length === 0
-      ? 'Nothing waiting on you'
-      : open.length === 1
-        ? 'One worth your time'
-        : open.length + ' worth your time';
-
-  function renderCard(a: Assessment) {
-    const job = a.jobs;
-    const min = money(job.budget_min, job.currency);
-    const max = money(job.budget_max, job.currency);
-    const pay = min === max ? min : min + '–' + max;
-    const decided = isHandled(a);
-    const rejected = a.alert !== null && a.alert.status === 'rejected';
-    const approved = a.alert !== null && a.alert.status === 'approved';
-    const draft = a.alert ? a.alert.proposal_draft : null;
-    const showing = openDraft === job.id;
-
-    return (
-      <article
-        key={a.id}
-        className="border-t py-8 sm:grid sm:grid-cols-[4.5rem_1fr] sm:gap-6 sm:py-10"
-        style={{
-          borderColor: 'var(--color-rule)',
-          opacity: rejected ? 0.5 : 1,
-        }}
-      >
-        <div
-          className="numeral mb-3 text-4xl sm:mb-0 sm:text-5xl"
-          style={{ color: 'var(--color-signal)' }}
-        >
-          {a.score}
-        </div>
-
-        <div className="min-w-0">
-          <h2
-            className="numeral mb-1 text-xl sm:text-2xl"
-            style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
-          >
-            {job.title}
-          </h2>
-          <p className="meta mb-5">
-            {job.platform} &middot; {job.client_country ?? 'Location not stated'}
-            {approved && ' · Approved'}
-            {rejected && ' · Not interested'}
-          </p>
-
-          <p className="assessment mb-6">{a.reasoning}</p>
-
-          <dl className="mb-6 space-y-3 text-sm">
-            {a.matched_skills.length > 0 && (
-              <div className="sm:flex sm:gap-3">
-                <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
-                  Matches
-                </dt>
-                <dd>{a.matched_skills.join(', ')}</dd>
-              </div>
-            )}
-            {a.concerns.length > 0 && (
-              <div className="sm:flex sm:gap-3">
-                <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
-                  Watch for
-                </dt>
-                <dd>{a.concerns.join('; ')}</dd>
-              </div>
-            )}
-            {pay !== null && (
-              <div className="sm:flex sm:gap-3">
-                <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
-                  Pay
-                </dt>
-                <dd>
-                  {pay}
-                  {job.salary_is_estimate && (
-                    <span style={{ color: 'var(--color-ink-soft)' }}>
-                      {' '}
-                      &mdash; estimated, not employer-stated
-                    </span>
-                  )}
-                </dd>
-              </div>
-            )}
-          </dl>
-
-          {draft !== null && !showing && (
-            <button
-              onClick={() => setOpenDraft(job.id)}
-              className="mb-6 block text-sm underline underline-offset-4"
-              style={{
-                fontFamily: 'var(--font-display)',
-                color: 'var(--color-signal)',
-              }}
-            >
-              Read the draft
-            </button>
-          )}
-
-          {draft !== null && showing && (
-            <div
-              className="mb-6 border-l-2 pl-4 sm:pl-5"
-              style={{ borderColor: 'var(--color-signal)' }}
-            >
-              <div className="mb-3 flex items-baseline justify-between gap-4">
-                <p className="meta">Draft &mdash; review before sending</p>
-                <button
-                  onClick={() => setOpenDraft(null)}
-                  className="meta underline underline-offset-4"
-                >
-                  Hide
-                </button>
-              </div>
-              <p className="assessment whitespace-pre-wrap">{draft}</p>
-              {a.alert && a.alert.submission_instructions && (
-                <div>
-                  <p className="meta mb-2 mt-5">How to submit</p>
-                  <p className="assessment">{a.alert.submission_instructions}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            {!decided && (
-              <button
-                onClick={() => decide(job.id, 'approved')}
-                disabled={busy === job.id}
-                className="px-4 py-2.5 text-sm disabled:opacity-40"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  background: 'var(--color-ink)',
-                  color: 'var(--color-paper)',
-                }}
-              >
-                {busy === job.id ? 'Drafting' : 'Draft a proposal'}
-              </button>
-            )}
-            {!decided && (
-              <button
-                onClick={() => decide(job.id, 'rejected')}
-                disabled={busy === job.id}
-                className="text-sm underline underline-offset-4 disabled:opacity-40"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  color: 'var(--color-ink-soft)',
-                }}
-              >
-                Not interested
-              </button>
-            )}
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm underline underline-offset-4"
-              style={{
-                fontFamily: 'var(--font-display)',
-                color: 'var(--color-ink-soft)',
-              }}
-            >
-              View posting
-            </a>
-          </div>
-        </div>
-      </article>
-    );
-  }
-
+export default function Landing() {
   return (
-    <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 sm:py-20">
-      <header className="mb-12 sm:mb-16">
-        <div className="mb-3 flex items-baseline justify-between gap-4">
-          <p className="meta">
-            {new Date().toLocaleDateString('en-GB', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
-          </p>
-          <span className="flex gap-5">
-            <Link
-              href="/preferences"
-              className="meta underline underline-offset-4"
-            >
-              Preferences
-            </Link>
-            <SignOut />
+    <main>
+      {/* Opening statement */}
+      <section className="mx-auto max-w-5xl px-5 pt-16 pb-20 sm:px-8 sm:pt-24 sm:pb-28">
+        <div className="mb-20 flex items-baseline justify-between gap-4 sm:mb-28">
+          <span
+            className="numeral text-lg"
+            style={{ fontWeight: 600, letterSpacing: '-0.04em' }}
+          >
+            GeegLot
+          </span>
+          <Link href="/sign-in" className="meta underline underline-offset-4">
+            Sign in
+          </Link>
+        </div>
+
+        <h1
+          className="numeral mb-8 text-[2.75rem] leading-[1.02] sm:text-7xl"
+          style={{ fontWeight: 500, letterSpacing: '-0.045em' }}
+        >
+          I check the job
+          <br />
+          boards. You decide.
+        </h1>
+
+        <p className="assessment mb-12 text-lg sm:text-xl">
+          GeegLot reads every new listing against what you&rsquo;re looking for,
+          and gets in touch only when something is genuinely worth your time.
+          Say yes, and it drafts the application for you to review.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-6">
+          <Link
+            href="/sign-in"
+            className="inline-block px-6 py-3.5 text-sm"
+            style={{
+              fontFamily: 'var(--font-display)',
+              background: 'var(--color-ink)',
+              color: 'var(--color-paper)',
+            }}
+          >
+            Start watching for me
+          </Link>
+          <span className="text-sm" style={{ color: 'var(--color-ink-soft)' }}>
+            Free while it&rsquo;s new
           </span>
         </div>
-        <h1
-          className="numeral text-4xl sm:text-5xl"
-          style={{ fontWeight: 500, letterSpacing: '-0.04em' }}
-        >
-          {heading}
-        </h1>
-        {open.length === 0 && (
-          <p className="assessment mt-6">
-            GeegLot checks your sources each morning. When something matches, it
-            appears here.
-          </p>
-        )}
-      </header>
+      </section>
 
-      {open.map(renderCard)}
+      {/* The product, shown rather than described */}
+      <section
+        className="border-t"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-24">
+          <p className="meta mb-10">What arrives</p>
 
-      {handled.length > 0 && (
-        <section className="mt-16">
-          <button
-            onClick={() => setShowHandled(!showHandled)}
-            className="meta underline underline-offset-4"
+          <article className="border-t py-8 sm:grid sm:grid-cols-[5.5rem_1fr] sm:gap-8 sm:py-10"
+            style={{ borderColor: 'var(--color-rule)' }}
           >
-            {showHandled
-              ? 'Hide the ' + handled.length + ' you have handled'
-              : handled.length + ' you have already handled'}
-          </button>
+            <div
+              className="numeral mb-3 text-5xl sm:mb-0 sm:text-6xl"
+              style={{ color: 'var(--color-signal)' }}
+            >
+              78
+            </div>
 
-          {showHandled && <div className="mt-8">{handled.map(renderCard)}</div>}
-        </section>
-      )}
+            <div className="min-w-0">
+              <h2
+                className="numeral mb-1 text-xl sm:text-2xl"
+                style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+              >
+                Fullstack JavaScript Developer — Opus Recruitment
+              </h2>
+              <p className="meta mb-5">Adzuna · Telford, Shropshire</p>
+
+              <p className="assessment mb-6">
+                The posting is a strong technical match, requiring React,
+                Next.js, TypeScript and Node.js — all core skills for this
+                candidate. The rate of 500–550 GBP/day comfortably exceeds the
+                candidate&rsquo;s minimum. The main concern is the location
+                listed as Telford, which may imply some on-site presence despite
+                the &lsquo;Remote&rsquo; label in the description.
+              </p>
+
+              <dl className="space-y-3 text-sm">
+                <div className="sm:flex sm:gap-3">
+                  <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                    Matches
+                  </dt>
+                  <dd>Next.js, React, TypeScript, NestJS</dd>
+                </div>
+                <div className="sm:flex sm:gap-3">
+                  <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                    Watch for
+                  </dt>
+                  <dd>
+                    Location may require on-site presence; 3-month contract,
+                    though extension is likely
+                  </dd>
+                </div>
+                <div className="sm:flex sm:gap-3">
+                  <dt className="meta mb-1 sm:mb-0 sm:w-24 sm:shrink-0 sm:pt-0.5">
+                    Pay
+                  </dt>
+                  <dd>£500–£550 per day</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+
+          <p
+            className="assessment mt-10 text-sm"
+            style={{ color: 'var(--color-ink-soft)' }}
+          >
+            A real assessment. The score, the reasoning, and the concerns —
+            including the ones that argue against applying.
+          </p>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section
+        className="border-t"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-24">
+          <p className="meta mb-12">How it works</p>
+
+          <ol className="space-y-12">
+            {[
+              {
+                n: '01',
+                h: 'Tell me what you do',
+                p: 'Upload your CV and I work out what to search for, what you\u2019re good at, and what kind of work suits you. Change anything I get wrong.',
+              },
+              {
+                n: '02',
+                h: 'I check every morning',
+                p: 'Job boards across most professions and most countries. You don\u2019t open them. You don\u2019t refresh anything.',
+              },
+              {
+                n: '03',
+                h: 'You hear from me only when it matters',
+                p: 'A score out of 100, why it scored that way, and what to watch out for. By email or Telegram, capped at however many a day you want.',
+              },
+              {
+                n: '04',
+                h: 'Say yes and I write the draft',
+                p: 'A tailored application in your voice, drawing on your real experience, with instructions on where to send it. You read it, change it, and send it yourself.',
+              },
+            ].map((step) => (
+              <li
+                key={step.n}
+                className="border-t pt-8 sm:grid sm:grid-cols-[5.5rem_1fr] sm:gap-8"
+                style={{ borderColor: 'var(--color-rule)' }}
+              >
+                <div
+                  className="numeral mb-3 text-2xl sm:mb-0"
+                  style={{ color: 'var(--color-ink-soft)', fontWeight: 500 }}
+                >
+                  {step.n}
+                </div>
+                <div>
+                  <h3
+                    className="numeral mb-3 text-xl sm:text-2xl"
+                    style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+                  >
+                    {step.h}
+                  </h3>
+                  <p className="assessment">{step.p}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* The principle — the one place the page raises its voice */}
+      <section style={{ background: 'var(--color-ink)' }}>
+        <div className="mx-auto max-w-5xl px-5 py-24 sm:px-8 sm:py-32">
+          <h2
+            className="numeral mb-8 text-4xl leading-[1.1] sm:text-6xl"
+            style={{
+              color: 'var(--color-paper)',
+              fontWeight: 500,
+              letterSpacing: '-0.04em',
+            }}
+          >
+            I never apply
+            <br />
+            on your behalf.
+          </h2>
+          <p
+            className="assessment text-lg"
+            style={{ color: 'var(--color-rule)' }}
+          >
+            Plenty of tools will fire off applications for you. GeegLot stops
+            one step short, on purpose. I find the work and write the draft. The
+            decision to send it, and the words that go out under your name, stay
+            yours.
+          </p>
+        </div>
+      </section>
+
+      {/* Honest limits */}
+      <section
+        className="border-t"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-24">
+          <p className="meta mb-10">Worth knowing</p>
+
+          <div className="grid gap-10 sm:grid-cols-2">
+            <div>
+              <h3
+                className="numeral mb-3 text-lg"
+                style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+              >
+                Some salaries are estimates
+              </h3>
+              <p className="assessment text-sm">
+                Job aggregators often guess at pay. Where a figure isn&rsquo;t
+                the employer&rsquo;s own, I say so rather than letting you
+                assume it&rsquo;s real.
+              </p>
+            </div>
+
+            <div>
+              <h3
+                className="numeral mb-3 text-lg"
+                style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+              >
+                A low score is still useful
+              </h3>
+              <p className="assessment text-sm">
+                I won&rsquo;t inflate a match to keep you applying. If something
+                scores 42, the reasoning tells you exactly which gaps put it
+                there.
+              </p>
+            </div>
+
+            <div>
+              <h3
+                className="numeral mb-3 text-lg"
+                style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+              >
+                Drafts leave gaps on purpose
+              </h3>
+              <p className="assessment text-sm">
+                If a posting asks for experience you haven&rsquo;t listed, the
+                draft leaves a marked blank instead of inventing something. Your
+                application should be true.
+              </p>
+            </div>
+
+            <div>
+              <h3
+                className="numeral mb-3 text-lg"
+                style={{ fontWeight: 500, letterSpacing: '-0.02em' }}
+              >
+                Coverage varies by country
+              </h3>
+              <p className="assessment text-sm">
+                Listings come from public job boards, so how much I find depends
+                on where you are and what you do. More sources are being added.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Close */}
+      <section
+        className="border-t"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <div className="mx-auto max-w-5xl px-5 py-20 sm:px-8 sm:py-28">
+          <h2
+            className="numeral mb-8 text-3xl sm:text-5xl"
+            style={{ fontWeight: 500, letterSpacing: '-0.04em' }}
+          >
+            Stop refreshing job boards.
+          </h2>
+          <Link
+            href="/sign-in"
+            className="inline-block px-6 py-3.5 text-sm"
+            style={{
+              fontFamily: 'var(--font-display)',
+              background: 'var(--color-ink)',
+              color: 'var(--color-paper)',
+            }}
+          >
+            Start watching for me
+          </Link>
+        </div>
+      </section>
+
+      <footer
+        className="border-t"
+        style={{ borderColor: 'var(--color-rule)' }}
+      >
+        <div className="mx-auto flex max-w-5xl flex-wrap items-baseline justify-between gap-4 px-5 py-10 sm:px-8">
+          <span className="meta">
+            GeegLot — I check the job boards. You decide.
+          </span>
+          <span className="meta">
+            Job data from Adzuna and İşkıbrıs
+          </span>
+        </div>
+      </footer>
     </main>
   );
 }
