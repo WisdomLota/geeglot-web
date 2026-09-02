@@ -17,6 +17,7 @@ interface Preferences {
   min_hourly_rate: number | null;
   profession_context: string | null;
   seeking: string[];
+  residence_country: string | null;
 }
 
 interface Profile {
@@ -76,6 +77,7 @@ export default function PreferencesPage() {
           min_hourly_rate: null,
           profession_context: '',
           seeking: ['employment'],
+          residence_country: null,
         });
       });
   }, []);
@@ -140,6 +142,7 @@ export default function PreferencesPage() {
         min_hourly_rate: prefs.min_hourly_rate,
         profession_context: prefs.profession_context,
         seeking: prefs.seeking,
+        residence_country: prefs.residence_country,
       });
       setSaved(true);
     } catch (e) {
@@ -266,8 +269,36 @@ export default function PreferencesPage() {
         </Field>
 
         <Field
-          label="Country"
-          help="Applies to Adzuna. İşkıbrıs is always Cyprus."
+          label="Where you live"
+          help="Used to judge whether you can actually apply — some postings restrict candidates by country, citizenship, or clearance."
+        >
+          <select
+            value={prefs.residence_country ?? ''}
+            onChange={(e) =>
+              set('residence_country', e.target.value || null)
+            }
+            className="w-full border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+            style={{ borderColor: 'var(--color-rule)' }}
+          >
+            <option value="">Prefer not to say</option>
+            <option value="cy">Cyprus</option>
+            <option value="tr">Türkiye</option>
+            <option value="ng">Nigeria</option>
+            <option value="gb">United Kingdom</option>
+            <option value="us">United States</option>
+            <option value="de">Germany</option>
+            <option value="nl">Netherlands</option>
+            <option value="ca">Canada</option>
+            <option value="au">Australia</option>
+            <option value="za">South Africa</option>
+            <option value="in">India</option>
+            <option value="br">Brazil</option>
+          </select>
+        </Field>
+
+        <Field
+          label="Where to search"
+          help="Which country's job market to search. Applies to Adzuna; remote sources search worldwide."
         >
           <select
             value={prefs.country}
