@@ -57,10 +57,15 @@ export default function PreferencesPage() {
   const [busy, setBusy] = useState(false);
   const [linking, setLinking] = useState(false);
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState('');
+  const [emailSaved, setEmailSaved] = useState(false);
 
   useEffect(() => {
     apiGet<Profile>('/me/profile')
-      .then(setProfile)
+      .then((p) => {
+        setProfile(p);
+        setEmailDraft(p.email ?? '');
+      })
       .catch(() => {});
 
     apiGet<Preferences>('/me/preferences')
@@ -112,6 +117,22 @@ export default function PreferencesPage() {
       setError((e as Error).message);
     } finally {
       setLinking(false);
+    }
+  }
+
+  async function saveEmail() {
+    if (!emailDraft.includes('@')) {
+      setError('That does not look like an email address');
+      return;
+    }
+    setError(null);
+    try {
+      await apiPut('/me/profile', { email: emailDraft.trim() });
+      const fresh = await apiGet<Profile>('/me/profile');
+      setProfile(fresh);
+      setEmailSaved(true);
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
 
@@ -449,7 +470,7 @@ export default function PreferencesPage() {
             {
               id: 'email',
               label: 'Email',
-              note: profile?.email ?? 'Your account address',
+              note: '',
             },
             {
               id: 'telegram',
@@ -480,6 +501,34 @@ export default function PreferencesPage() {
             </label>
           ))}
         </div>
+
+        {(profile?.alert_channel === 'email' ||
+          profile?.alert_channel === 'both') && (
+          <div className="mb-10">
+            <p className="meta mb-2">Send alerts to</p>
+            <div className="flex flex-wrap items-baseline gap-4">
+              <input
+                type="email"
+                value={emailDraft}
+                onChange={(e) => {
+                  setEmailDraft(e.target.value);
+                  setEmailSaved(false);
+                }}
+                className="flex-1 border-b bg-transparent py-2 text-lg outline-none focus:border-current"
+                style={{ borderColor: 'var(--color-rule)', minWidth: '16rem' }}
+              />
+              {emailDraft !== (profile?.email ?? '') && (
+                <button
+                  onClick={saveEmail}
+                  className="meta underline underline-offset-4"
+                >
+                  Save
+                </button>
+              )}
+              {emailSaved && <span className="meta">Saved</span>}
+            </div>
+          </div>
+        )}
 
         {wantsTelegram && (
           <div>
