@@ -1,19 +1,4 @@
 import Link from 'next/link';
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'GeegLot — I check the job boards. You decide.',
-  description:
-    'GeegLot reads job and gig listings against what you are looking for, and gets in touch only when something is worth your time. It drafts the application. You send it.',
-  openGraph: {
-    title: 'GeegLot — I check the job boards. You decide.',
-    description:
-      'Stop refreshing job boards. GeegLot reads them for you and only gets in touch when something is genuinely worth your time.',
-    url: 'https://geeglot.com',
-    siteName: 'GeegLot',
-    type: 'website',
-  },
-};
 
 export default function Landing() {
   return (
